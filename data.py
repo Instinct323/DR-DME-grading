@@ -2,6 +2,8 @@ import cv2
 import pandas as pd
 
 from engine.crosstab import Crosstab
+from model.ema import EmaModel
+from model.fourier import make_grid
 from model.model import *
 from utils.data import Dataset, hold_out, ImagePool
 from utils.utils import Path
@@ -97,12 +99,14 @@ def get_metrics(preds, target):
 
 
 def get_fitness(metrics):
-    return (.2 * metrics[-4:-2].mean() + .8 * metrics[-2:].mean()).item()
+    return (.4 * metrics.mean() + .8 * metrics[-3:-1].mean()).item()
 
 
 # 留出法: 用于 CNN / ViT 训练
 HOLD_OUT = Path('config/hold-out.pkf')
 HOLD_OUT = tuple(map(Dataset, HOLD_OUT.lazy_obj(hold_out, CLS_CNT, scale=.8, seed=1)))
+# 全部数据: 用于对比学习
+# ALL_DATA = Dataset(list(CLS_CNT.index))
 
 
 def data_loader(hyp, train_set, eval_set=None):
@@ -117,7 +121,14 @@ def data_loader(hyp, train_set, eval_set=None):
     return train_set, eval_set
 
 
-def load_model(cfg, weight, hyp={}, freeze=None, strict=True):
+def get_mask(n_patch):
+    grid = make_grid(n_patch, n_patch, center=True)
+    grid -= .5
+    grid = grid[..., 0] + 1j * grid[..., 1]
+    return np.abs(grid).flatten() < .5
+
+
+def load_model(cfg, weight, hyp={}, freeze=None, ema=False):
     ''' return: best fitness'''
     if not isinstance(hyp, dict): hyp = hyp.yaml()
     if not isinstance(cfg, dict): cfg = cfg.yaml()
@@ -133,13 +144,34 @@ def load_model(cfg, weight, hyp={}, freeze=None, strict=True):
     model = YamlModel(cfg).cuda()
     if freeze:
         for i in range(freeze): model.freeze(i)
+    # EMA
+    ema = EmaModel(model, bp_times=3000) if ema else None
     # 如果使用了 ViT, 设置掩码
-    if weight: model.load_state_dict(torch.load(weight)['model'], strict=strict)
+    if weight: model.load_state_dict(torch.load(weight)['model'], strict=False)
     LOGGER.info(f'Inference latency: {get_cost(model):.2f} ms')
-    return model, cfg, hyp
+    return (model, ema) if ema else model, cfg, hyp
 
 
 if __name__ == '__main__':
-    targets = np.stack(DATAPOOL.raw_data[UNDERSAMPLING[0]._data][:, 1])
-    targets[:, 1] += 4
-    print(np.bincount(targets.flatten()))
+    import matplotlib.pyplot as plt
+
+    patch_size = 32
+    img_size = 608
+    n_patch = img_size // patch_size
+
+    # 获取图像和掩膜
+    img = DATAPOOL.loadone(np.random.choice(DATAPOOL.files), (img_size,) * 2)
+    mask = get_mask(n_patch).reshape(*(n_patch,) * 2)
+    print(mask.sum())
+    mask = mask.repeat(patch_size, 0).repeat(patch_size, 1)
+    mask = np.uint8(mask[..., None] * (240, 176, 0))
+
+    # 绘制网格线
+    kwd = dict(color=(148, 20, 7), thickness=1)
+    for x in np.arange(0, img_size, patch_size)[1:]:
+        mask = cv2.line(mask, (0, x), (img_size, x), **kwd)
+        mask = cv2.line(mask, (x, 0), (x, img_size), **kwd)
+
+    img = cv2.addWeighted(img, .7, mask, .3, 0)
+    cv2.imshow('sd', img)
+    cv2.waitKey(0)

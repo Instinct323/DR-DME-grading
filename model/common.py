@@ -440,12 +440,12 @@ class Mlp(MixFFN):
 @register_module('c1')
 class MixerLayer(nn.Module):
 
-    def __init__(self, c1, p, e=.5, drop=0.1):
+    def __init__(self, c1, p, ep=2., ec=4, drop=0.1):
         super(MixerLayer, self).__init__()
         self.ln1 = nn.LayerNorm(c1)
-        self.mlp1 = Mlp(p, e=e, drop=drop, act=QuickGELU)
+        self.mlp1 = Mlp(p, e=ep, drop=drop, act=QuickGELU)
         self.ln2 = nn.LayerNorm(c1)
-        self.mlp2 = Mlp(c1, e=e, drop=drop, act=QuickGELU)
+        self.mlp2 = Mlp(c1, e=ec, drop=drop, act=QuickGELU)
 
     def forward(self, x):
         t = lambda x: x.transpose(1, 2)

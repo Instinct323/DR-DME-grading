@@ -27,7 +27,7 @@ def cfg_modify(yaml_cfg: dict, modify: Union[tuple, list]):
     return yaml_cfg
 
 
-class YamlModel(nn.ModuleList):
+class YamlModel(nn.Module):
     ''' depth_multiple: 模块深度增益
         width_multiple: 卷积宽度增益
         fixed_layers: 不受增益影响的层索引
@@ -39,6 +39,7 @@ class YamlModel(nn.ModuleList):
     device = property(fget=lambda self: next(self.parameters()).device)
 
     def __init__(self, yaml_cfg: Union[Path, dict], in_channels: int = 3, ch_divisor: int = 4):
+        super().__init__()
         self.cfg = yaml_cfg if isinstance(yaml_cfg, dict) \
             else yaml.load(yaml_cfg.read_text(), Loader=yaml.Loader)
         # 缺省参数: 深度增益, 宽度增益
@@ -48,13 +49,12 @@ class YamlModel(nn.ModuleList):
         assert self.cfg.get('architecture', None), '\"architecture\" is not defined'
         self.cfg['fixed_layers'] = [i % len(self.cfg['architecture']) for i in self.cfg.get('fixed_layers', [])]
         # 解析架构信息
-        modules = self.parse_architecture(in_channels, ch_divisor=ch_divisor)
-        super(YamlModel, self).__init__(modules)
+        self.main = nn.ModuleList(self.parse_architecture(in_channels, ch_divisor=ch_divisor))
         self.eval()
         # 冻结层信息
         self.cfg.setdefault('freeze', [])
         assert isinstance(self.cfg['freeze'], list), '\"freeze\" should be a list of slicing expressions'
-        indexes = list(range(len(self)))
+        indexes = list(range(len(self.main)))
         for slc in self.cfg['freeze']:
             for i in eval(f'indexes[{slc}]'): self.freeze(i)
         self.init_param()
@@ -90,7 +90,7 @@ class YamlModel(nn.ModuleList):
 
     def forward_feature(self, x, tarlayer=-1, profile=False):
         x_cache = []
-        for i, m in zip(range(tarlayer % len(self) + 1), self):
+        for i, m in zip(range(tarlayer % len(self.main) + 1), self.main):
             if m.f != -1: x = x_cache[m.f] if isinstance(m.f, int) else [x_cache[f] for f in m.f]
             # 提供给 profile 函数测试
             if profile: yield x, m
@@ -123,16 +123,16 @@ class YamlModel(nn.ModuleList):
         return information
 
     def pop(self, index):
-        self._modules.pop(str(index))
+        self.main._modules.pop(str(index))
 
     def freeze(self, index):
-        LOGGER.info(f'freezing layer {index} <{self[index].t}>')
-        for k, v in self[index].named_parameters():
+        LOGGER.info(f'freezing layer {index} <{self.main[index].t}>')
+        for k, v in self.main[index].named_parameters():
             v.requires_grad = False
 
     def unfreeze(self, index):
-        LOGGER.info(f'unfreezing layer {index} <{self[index].t}>')
-        for k, v in self[index].named_parameters():
+        LOGGER.info(f'unfreezing layer {index} <{self.main[index].t}>')
+        for k, v in self.main[index].named_parameters():
             v.requires_grad = True
 
     def simplify(self, inplace=True):
@@ -243,7 +243,7 @@ class YamlModel(nn.ModuleList):
             # 保存除 -1 之外的 from 参数到 save 列表 (同时对负数求余)
             if from_ != -1: self.save |= {f % i for f in ([from_] if isinstance(from_, int) else from_)}
             # 输出模块信息
-            args.append(kwargs)
+            if kwargs: args.append(kwargs)
             LOGGER.info('%3s %17s %2s %9.0f  %-15s %-30s' % (i, from_, number, params, type_, args))
         # 输出模型的统计信息
         params = sum([m.np for m in modules])

@@ -6,12 +6,17 @@ from multiprocessing.pool import ThreadPool
 from typing import Union, Callable, Sequence
 
 import pandas as pd
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from .imgtf import *
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 LOGGER = logging.getLogger(__name__)
+
+
+def bp_times(loader: DataLoader, epochs: int):
+    return len(loader) * epochs
 
 
 def hold_out(cls_cnt: pd.DataFrame, scale: float, seed=0):
@@ -130,6 +135,9 @@ class ImagePool:
                         total=len(self.files), desc='Loading images')
             self.images = np.stack(tuple(qbar))
 
+    def __iter__(self):
+        return (self[i] for i in range(len(self)))
+
     def __len__(self):
         return len(self.files)
 
@@ -147,6 +155,9 @@ class Dataset(torch.utils.data.Dataset):
         self.augment = True
         self.imgpool = imgpool
         self.indexes, self.tf = indexes, None
+
+    def __iter__(self):
+        return (self[i] for i in self.indexes)
 
     def __len__(self):
         return len(self.indexes)

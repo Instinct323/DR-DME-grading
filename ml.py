@@ -24,14 +24,15 @@ def load_dataset(batch_size):
     from engine.trainer import select_device
 
     device = select_device('', batch_size=batch_size)
-    model, *_ = load_model(cfg=VOVNET / 'drop.yaml', weight=VOVNET / 'drop.pt', strict=True)
+    model, *_ = load_model(cfg=VOVNET / 'final.yaml',
+                           weight=VOVNET / 'final.pt')
     model.simplify(True)
     # 读取数据集, 创建缓存区
     DATAPOOL.loadimg(model.cfg['img_size'])
     x, y = [], []
     # 前向传播得到低维特征
     with torch.no_grad():
-        for img, tar in tqdm(torch.utils.data.DataLoader(ALL_DATA[1], batch_size=batch_size, shuffle=False),
+        for img, tar in tqdm(torch.utils.data.DataLoader(ALL_DATA, batch_size=batch_size, shuffle=False),
                              desc='Inference'):
             img = img.to(device)
             x.append(model(img, tarlayer=-3)[..., 0, 0].cpu())
@@ -146,7 +147,7 @@ class Toolkit:
 @Toolkit.register
 class DecTreeClf:
     ''' 决策树'''
-    mutation = .6
+    mutation = 1.
     epochs = 70
     hyp = ML / 'tree/hyp.yaml'
 
@@ -193,7 +194,7 @@ class BoostTreeClf(ForestClf):
 @Toolkit.register
 class SVMClf:
     ''' 支持向量机'''
-    mutation = .4
+    mutation = 1.
     epochs = 50
     hyp = ML / 'svm/hyp.yaml'
 
@@ -221,5 +222,6 @@ class BagSVMClf(SVMClf):
         return BaggingClassifier(baseclf, n_estimators=n)
 
 
-Toolkit.test_all(baseline=False)
 # Toolkit.evolution(BoostTreeClf)
+Toolkit.test_all(baseline=False)
+

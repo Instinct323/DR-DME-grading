@@ -134,8 +134,8 @@ class Trainer:
             self._optim.load_state_dict(ckpt['optim'])
             self._lr_scheduler.load_state_dict(ckpt['sche'])
             self.model.load_state_dict(ckpt['model'], strict=True)
-        result = Result(self.project, title=('loss', 'lr', *self._m_title.split()))
         # 开始训练 / 继续训练
+        result = Result(self.project, title=('loss', 'lr', *self._m_title.split()))
         for epoch in range(start_epoch + 1, self._epochs + 1):
             dump_files = ['last.pt']
             metrics = np.array([])
