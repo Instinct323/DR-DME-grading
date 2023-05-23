@@ -211,7 +211,7 @@ class SVMClf:
 
 @Toolkit.register
 class BagSVMClf(SVMClf):
-    ''' AdaBoost + 支持向量机'''
+    ''' Bagging + 支持向量机'''
     hyp = ML / 'svm/hyp-bag.yaml'
 
     def __new__(cls, hyp=None):
