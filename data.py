@@ -57,7 +57,7 @@ class ImgReader(ImagePool):
         gray = cv2.erode(gray, np.ones([5, 5]), iterations=1)
         l, t, w, h = cv2.boundingRect(gray)
         file_or_bgr = file_or_bgr[t: t + h, l: l + w]
-        # cv2.imshow('dasd', file_or_bgr)
+        # cv2.imshow('debug', file_or_bgr)
         # cv2.waitKey(0)
         h, w, _ = file_or_bgr.shape
         assert 0.95 < h / w < 1.05, 'Failed to extract minimum bounding rect'
