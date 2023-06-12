@@ -12,7 +12,7 @@ logging.basicConfig(format='%(message)s', level=logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
 DR, DME = 4, 3
-INDEXS = ['Image name', 'Retinopathy grade', 'Risk of macular edema ']
+INDEXS = 'Image name', 'Retinopathy grade', 'Risk of macular edema '
 
 CFG = Path('config')
 RESNET = CFG / 'resnet'
